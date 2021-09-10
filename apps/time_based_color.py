@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from light_control import home, kitchen
-from light_curve import calculate_light_setting
+from light_control import home
+
 from base_app import BaseApp
 
 
@@ -22,9 +22,7 @@ class TimeBasedColor(BaseApp):
 
     def _set_lights(self) -> None:
         try:
-            light_setting = calculate_light_setting(self.time())
-            self.log(f"Setting all lights to {light_setting}")
-            home.set(self, light_setting)
+            home.refresh(self)
         except:
             self.notify_exception()
             raise

@@ -7,6 +7,7 @@ from typing import ClassVar, Optional
 
 from appdaemon.plugins.hass.hassapi import Hass
 
+from light_curve import calculate_light_setting
 from light_setting import LightSetting
 from switch import (
     HueDimmerSwitch,
@@ -71,18 +72,13 @@ class Fixture:
             light.set(hass, setting, skip_fade)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Room:
     switch: HueDimmerSwitch
     fixtures: list[Fixture]
 
-    @unique
-    class Mode(StrEnum):
-        OFF = auto()
-        AUTO = auto()
-        ON = auto()
-
-    def set(self, hass: Hass, setting: LightSetting) -> None:
+    def refresh(self, hass: Hass) -> None:
+        setting = calculate_light_setting(hass.time())
         skip_fade = False
 
         switch_state = self.switch.get_state(hass)
@@ -101,9 +97,9 @@ class Room:
 class Home:
     rooms: list[Room]
 
-    def set(self, hass: Hass, setting: LightSetting) -> None:
+    def refresh(self, hass: Hass) -> None:
         for room in self.rooms:
-            room.set(hass, setting)
+            room.refresh(hass)
 
 
 # Light declarations
@@ -162,6 +158,8 @@ toilet = Room(
     ],
 )
 
+all_rooms = [bathroom, bedroom, dining_room, hallway, kitchen, living_room, toilet]
+
 home = Home(
-    [bathroom, bedroom, dining_room, hallway, kitchen, living_room, toilet],
+    all_rooms
 )
