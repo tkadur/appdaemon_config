@@ -7,7 +7,7 @@ from typing import ClassVar, Optional
 
 from appdaemon.plugins.hass.hassapi import Hass
 
-from curve import calculate_light_setting
+from curve import current_light_setting
 from light_setting import LightSetting
 from switch import (
     HueDimmerSwitch,
@@ -22,20 +22,14 @@ from util import StrEnum, irange
 class Light:
     entity_id: str
 
-    def set(self, hass: Hass, setting: LightSetting, skip_fade: bool) -> None:
-        if skip_fade:
-            transition = 1
-        else:
-            transition = 10
-
+    def set(self, hass: Hass, setting: LightSetting) -> None:
         if setting.brightness == 0:
-            hass.turn_off(self.entity_id, transition=transition)
+            hass.turn_off(self.entity_id, transition=0)
         else:
             hass.turn_on(
                 self.entity_id,
                 brightness_pct=setting.brightness,
                 kelvin=setting.color_temperature,
-                transition=transition,
             )
 
 
@@ -43,7 +37,7 @@ class Light:
 class Fixture:
     lights: list[Light]
 
-    def set(self, hass: Hass, setting: LightSetting, skip_fade: bool = False) -> None:
+    def set(self, hass: Hass, setting: LightSetting) -> None:
         # For very low settings, since lights can't go lower than 1% we can
         # try to emulate lower brightnesses by turning on a subset of the lights to 1%.
         # To make transitions across the boundary smoother we also re-scale
@@ -66,10 +60,10 @@ class Fixture:
 
             # Turn off unneeded lights
             for light in self.lights[num_lights_to_set:]:
-                light.set(hass, LightSetting.OFF, skip_fade)
+                light.set(hass, LightSetting.OFF)
 
         for light in lights_to_set:
-            light.set(hass, setting, skip_fade)
+            light.set(hass, setting)
 
 
 @dataclass(frozen=True)
@@ -78,19 +72,14 @@ class Room:
     fixtures: list[Fixture]
 
     def refresh(self, hass: Hass) -> None:
-        setting = calculate_light_setting(hass.time())
-        skip_fade = False
+        setting = current_light_setting(hass)
 
         switch_state = self.switch.get_state(hass)
-        if switch_state == HueDimmerSwitch.State.OFF:
-            setting = setting.with_brightness(0)
-            skip_fade = True
-        elif switch_state == HueDimmerSwitch.State.ON:
-            setting = setting.with_brightness(100)
-            skip_fade = True
+        if switch_state != HueDimmerSwitch.State.DEFAULT:
+            setting = setting.with_brightness(switch_state.to_brightness())
 
         for fixture in self.fixtures:
-            fixture.set(hass, setting, skip_fade)
+            fixture.set(hass, setting)
 
 
 @dataclass(frozen=True)
@@ -150,7 +139,7 @@ living_room = Room(
 )
 
 toilet = Room(
-    switch=bathroom_dimmer_switch,
+    switch=bedroom_dimmer_switch,
     fixtures=[
         Fixture(
             [Light(f"light.toilet_{bulb}") for bulb in irange(1, 2)],

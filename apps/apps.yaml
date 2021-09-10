@@ -1,11 +1,21 @@
 global_modules:
   - base_app
   - hue_event
-  - control
+  - lights
   - curve
   - light_setting
+  - metrics
   - switch
   - util
+
+emit_metrics:
+  module: emit_metrics
+  class: EmitMetrics
+  global_dependencies:
+    - base_app
+    - curve
+    - light_setting
+    - metrics
 
 process_switch_events:
   module: process_switch_events
@@ -13,6 +23,7 @@ process_switch_events:
   global_dependencies:
     - base_app
     - hue_event
+    - metrics
     - switch
     - util
 
@@ -22,8 +33,17 @@ time_based_color:
   global_dependencies:
     - base_app
     - hue_event
-    - control
+    - lights
     - curve
     - light_setting
     - switch
     - util
+
+reset_switches_every_night:
+  module: reset_switches_every_night
+  class: ResetSwitchesEveryNight
+  global_dependencies:
+    - base_app
+    - curve
+    - lights
+    - switch

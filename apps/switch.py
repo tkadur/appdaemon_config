@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum, auto, unique
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, ClassVar, Mapping, Type, TypeVar
+from typing import Any, ClassVar, Mapping, Optional, Type, TypeVar
 
 from appdaemon.plugins.hass.hassapi import Hass
 
+from curve import current_light_setting
 from hue_event import Event as HueEvent
 from util import StrEnum
 
@@ -59,40 +60,82 @@ class HueDimmerSwitch:
         class ProcessResult(Enum):
             PROCESSED = auto()
             IGNORED = auto()
+            UNRECOGNIZED = auto()
 
         def process(self, hass: Hass) -> ProcessResult:
             if self.switch not in all_switches:
+                return self.ProcessResult.UNRECOGNIZED
+
+            # We ignore down actions because they're unreliable
+            if self.action in (
+                HueDimmerSwitch.ButtonAction.PRESS_DOWN,
+                HueDimmerSwitch.ButtonAction.HOLD_DOWN,
+            ):
                 return self.ProcessResult.IGNORED
 
-            if (
-                self.button == HueDimmerSwitch.Button.POWER
-                and self.action == HueDimmerSwitch.ButtonAction.PRESS_UP
-            ):
-                if self.switch.get_state(hass) == HueDimmerSwitch.State.OFF:
+            half_brightness = HueDimmerSwitch.State.HALF_ON.to_brightness()
+            full_brightness = HueDimmerSwitch.State.ON.to_brightness()
+
+            current_state = self.switch.get_state(hass)
+            new_state = current_state
+            current_brightness = current_light_setting(hass).brightness
+
+            # Power switch
+            if self.button == HueDimmerSwitch.Button.POWER:
+                # off -> half on if default brightness is low
+                if (
+                    current_state == HueDimmerSwitch.State.OFF
+                    and current_brightness < half_brightness
+                ):
+                    new_state = HueDimmerSwitch.State.HALF_ON
+                # off -> default if not low brightness
+                elif (
+                    current_state == HueDimmerSwitch.State.OFF
+                    and current_brightness >= half_brightness
+                ):
                     new_state = HueDimmerSwitch.State.DEFAULT
+                # default/half on/on -> off
                 else:
                     new_state = HueDimmerSwitch.State.OFF
+            # Brightness up
+            elif self.button == HueDimmerSwitch.Button.BRIGHTNESS_UP:
+                hass.log(f"{current_state}, {current_brightness}")
 
-                self.switch.set_state(hass, new_state)
-                return self.ProcessResult.PROCESSED
+                # off/low brightness -> half on
+                if current_state == HueDimmerSwitch.State.OFF or (
+                    current_state == HueDimmerSwitch.State.DEFAULT
+                    and current_brightness < half_brightness
+                ):
+                    new_state = HueDimmerSwitch.State.HALF_ON
+                # half on/middling brightness -> on
+                elif current_state == HueDimmerSwitch.State.HALF_ON or (
+                    current_state == HueDimmerSwitch.State.DEFAULT
+                    and current_brightness < full_brightness
+                ):
+                    new_state = HueDimmerSwitch.State.ON
+            # Brightness down
+            elif self.button == HueDimmerSwitch.Button.BRIGHTNESS_DOWN:
+                # on/high brightness -> half on
+                if current_state == HueDimmerSwitch.State.ON or (
+                    current_state == HueDimmerSwitch.State.DEFAULT
+                    and current_brightness > half_brightness
+                ):
+                    new_state = HueDimmerSwitch.State.HALF_ON
+                # half on/ middling brightness -> off
+                elif current_state == HueDimmerSwitch.State.HALF_ON or (
+                    current_state == HueDimmerSwitch.State.DEFAULT
+                    and current_brightness <= half_brightness
+                ):
+                    new_state = HueDimmerSwitch.State.OFF
+            # Hue button
+            elif self.button == HueDimmerSwitch.Button.HUE:
+                new_state = HueDimmerSwitch.State.DEFAULT
 
-            elif (
-                self.button == HueDimmerSwitch.Button.BRIGHTNESS_UP
-                and self.action == HueDimmerSwitch.ButtonAction.PRESS_UP
-            ):
-                if self.switch.get_state(hass) != HueDimmerSwitch.State.OFF:
-                    self.switch.set_state(hass, HueDimmerSwitch.State.ON)
-                    return self.ProcessResult.PROCESSED
+            # if current_state == new_state:
+            #    return self.ProcessResult.IGNORED
 
-            elif (
-                self.button == HueDimmerSwitch.Button.BRIGHTNESS_DOWN
-                and self.action == HueDimmerSwitch.ButtonAction.PRESS_UP
-            ):
-                if self.switch.get_state(hass) != HueDimmerSwitch.State.OFF:
-                    self.switch.set_state(hass, HueDimmerSwitch.State.DEFAULT)
-                    return self.ProcessResult.PROCESSED
-
-            return self.ProcessResult.IGNORED
+            self.switch.set_state(hass, new_state)
+            return self.ProcessResult.PROCESSED
 
     @cached_property
     def _entity_name(self) -> str:
@@ -102,7 +145,15 @@ class HueDimmerSwitch:
     class State(StrEnum):
         DEFAULT = auto()
         OFF = auto()
+        HALF_ON = auto()
         ON = auto()
+
+        def to_brightness(self) -> int:
+            return {
+                HueDimmerSwitch.State.OFF: 0,
+                HueDimmerSwitch.State.HALF_ON: 25,
+                HueDimmerSwitch.State.ON: 100,
+            }[self]
 
     def get_state(self, hass: Hass) -> State:
         state = hass.get_state(self._entity_name)

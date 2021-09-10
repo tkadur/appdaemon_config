@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import time
 
+from appdaemon.plugins.hass.hassapi import Hass
+
 import numpy as np
 from scipy.interpolate import pchip  # type: ignore[import]
 
@@ -53,6 +55,9 @@ points = [
     ),
 ]
 
+# Make sure the curve loops cleanly back to the start
+points.append(points[0])
+
 
 # Split points into lists of x and y coordinates
 
@@ -71,8 +76,8 @@ brightness_curve = pchip(time_values, brightness_values)
 color_temperature_curve = pchip(time_values, color_temperature_values)
 
 
-def calculate_light_setting(time: time) -> LightSetting:
-    minutes_since_midnight = time_to_minutes_since_midnight(time)
+def current_light_setting(hass: Hass) -> LightSetting:
+    minutes_since_midnight = time_to_minutes_since_midnight(hass.time())
 
     return LightSetting(
         brightness=int(brightness_curve(minutes_since_midnight)),
