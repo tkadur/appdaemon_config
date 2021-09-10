@@ -1,0 +1,6 @@
+__pycache__
+.mypy_cache
+stubs
+
+# Contains location information
+appdaemon.yaml

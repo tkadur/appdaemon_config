@@ -1,0 +1,29 @@
+global_modules:
+  - base_app
+  - hue_event
+  - light_control
+  - light_curve
+  - light_setting
+  - switch
+  - util
+
+process_switch_events:
+  module: process_switch_events
+  class: ProcessSwitchEvents
+  global_dependencies:
+    - base_app
+    - hue_event
+    - switch
+    - util
+
+time_based_color:
+  module: time_based_color
+  class: TimeBasedColor
+  global_dependencies:
+    - base_app
+    - hue_event
+    - light_control
+    - light_curve
+    - light_setting
+    - switch
+    - util
