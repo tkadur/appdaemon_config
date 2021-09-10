@@ -25,10 +25,5 @@ class LightSetting:
             brightness=new_brightness, color_temperature=self.color_temperature
         )
 
-    def with_color_temperature(self, new_color_temperature: int) -> LightSetting:
-        return LightSetting(
-            brightness=self.brightness, color_temperature=new_color_temperature
-        )
-
 
 LightSetting.OFF = LightSetting(brightness=0, color_temperature=2200)

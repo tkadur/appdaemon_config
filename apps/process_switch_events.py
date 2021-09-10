@@ -16,9 +16,14 @@ class ProcessSwitchEvents(BaseApp):
         self, event_name: str, data: dict[str, Any], kwargs: dict[str, Any]
     ) -> None:
         try:
-            switch_event = HueDimmerSwitch.Event.from_hue_event(HueEvent.parse_obj(data))
+            switch_event = HueDimmerSwitch.Event.from_hue_event(
+                HueEvent.parse_obj(data)
+            )
 
-            if switch_event.process(self) == HueDimmerSwitch.Event.ProcessResult.IGNORED:
+            if (
+                switch_event.process(self)
+                == HueDimmerSwitch.Event.ProcessResult.IGNORED
+            ):
                 self.log(f"Ignored {switch_event}")
                 return
 
@@ -31,7 +36,7 @@ class ProcessSwitchEvents(BaseApp):
 
             for room in all_rooms:
                 if switch == room.switch:
-                    room.refresh()
+                    room.refresh(self)
         except:
             self.notify_exception()
             raise

@@ -160,6 +160,4 @@ toilet = Room(
 
 all_rooms = [bathroom, bedroom, dining_room, hallway, kitchen, living_room, toilet]
 
-home = Home(
-    all_rooms
-)
+home = Home(all_rooms)
