@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import time
 
 import numpy as np
-from scipy.interpolate import pchip
+from scipy.interpolate import pchip  # type: ignore[import]
 
 from light_setting import LightSetting
 

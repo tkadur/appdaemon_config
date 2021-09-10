@@ -65,7 +65,7 @@ class Fixture:
 
             # Turn off unneeded lights
             for light in self.lights[num_lights_to_set:]:
-                light.set(hass, LightSetting.off(), skip_fade)
+                light.set(hass, LightSetting.OFF, skip_fade)
 
         for light in lights_to_set:
             light.set(hass, setting, skip_fade)

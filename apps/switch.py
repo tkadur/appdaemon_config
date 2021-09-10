@@ -36,20 +36,13 @@ class HueDimmerSwitch:
 
     _EVENT_CODE_TO_BUTTON_ACTION: ClassVar[Mapping[int, tuple[Button, ButtonAction]]]
 
-    def __post_init__(self) -> None:
-        self.__class__._EVENT_CODE_TO_BUTTON_ACTION = {
-            (button * 1000) + action: (button, action)
-            for button in HueDimmerSwitch.Button
-            for action in HueDimmerSwitch.ButtonAction
-        }
-
     @dataclass(frozen=True)
     class Event:
         switch: HueDimmerSwitch
         button: HueDimmerSwitch.Button
         action: HueDimmerSwitch.ButtonAction
 
-        _Self = TypeVar("_Self", bound="Event")
+        _Self = TypeVar("_Self", bound="HueDimmerSwitch.Event")
 
         @classmethod
         def from_hue_event(cls: Type[_Self], hue_event: HueEvent) -> _Self:
@@ -67,7 +60,7 @@ class HueDimmerSwitch:
             PROCESSED = auto()
             IGNORED = auto()
 
-        def process(self, hass: Hass) -> None:
+        def process(self, hass: Hass) -> ProcessResult:
             if self.switch not in all_switches:
                 return self.ProcessResult.IGNORED
 
@@ -121,6 +114,13 @@ class HueDimmerSwitch:
 
     def set_state(self, hass: Hass, state: State) -> None:
         hass.set_state(self._entity_name, state=state)
+
+
+HueDimmerSwitch._EVENT_CODE_TO_BUTTON_ACTION = {
+    (button * 1000) + action: (button, action)
+    for button in HueDimmerSwitch.Button
+    for action in HueDimmerSwitch.ButtonAction
+}
 
 
 bathroom_dimmer_switch = HueDimmerSwitch(id="bathroom_dimmer_switch", unique_id="")
