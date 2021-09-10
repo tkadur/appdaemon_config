@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from light_control import home
+from control import home
 
 from base_app import BaseApp
 

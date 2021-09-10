@@ -1,8 +1,8 @@
 global_modules:
   - base_app
   - hue_event
-  - light_control
-  - light_curve
+  - control
+  - curve
   - light_setting
   - switch
   - util
@@ -22,8 +22,8 @@ time_based_color:
   global_dependencies:
     - base_app
     - hue_event
-    - light_control
-    - light_curve
+    - control
+    - curve
     - light_setting
     - switch
     - util

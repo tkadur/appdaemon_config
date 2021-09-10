@@ -7,7 +7,7 @@ from typing import ClassVar, Optional
 
 from appdaemon.plugins.hass.hassapi import Hass
 
-from light_curve import calculate_light_setting
+from curve import calculate_light_setting
 from light_setting import LightSetting
 from switch import (
     HueDimmerSwitch,

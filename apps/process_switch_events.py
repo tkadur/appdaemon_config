@@ -4,8 +4,8 @@ from typing import Any
 
 from base_app import BaseApp
 from hue_event import Event as HueEvent
-from light_control import all_rooms
-from switch import HueDimmerSwitch, bedroom_dimmer_switch
+from control import all_rooms
+from switch import HueDimmerSwitch
 
 
 class ProcessSwitchEvents(BaseApp):
