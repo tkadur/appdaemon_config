@@ -13,12 +13,12 @@ class LightSetting:
 
     def __post_init__(self) -> None:
         assert (
-            0 <= self.brightness and self.brightness <= 100
-        ), f"Brightness {self.brightness} must be within the range [0, 100]."
+            0 <= self.brightness and self.brightness <= 255
+        ), f"Brightness {self.brightness} must be within the range [0, 255]."
 
         assert (
-            2200 <= self.color_temperature and self.color_temperature <= 6500
-        ), f"Color temperature {self.color_temperature}K must be within the range [2200K, 6500K]."
+            153 <= self.color_temperature and self.color_temperature <= 500
+        ), f"Color temperature {self.color_temperature}M must be within the range [153M, 500M]."
 
     def with_brightness(self, new_brightness: int) -> LightSetting:
         return LightSetting(
@@ -26,4 +26,4 @@ class LightSetting:
         )
 
 
-LightSetting.OFF = LightSetting(brightness=0, color_temperature=2200)
+LightSetting.OFF = LightSetting(brightness=0, color_temperature=153)

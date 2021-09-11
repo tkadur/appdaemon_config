@@ -4,39 +4,38 @@ from typing import Any
 
 from base_app import BaseApp
 from hue_event import Event as HueEvent
-from lights import all_rooms
+from lights import home
 from switch import HueDimmerSwitch
 
-
 class ProcessSwitchEvents(BaseApp):
-    def initialize(self) -> None:
+    async def initialize(self) -> None:
         self.listen_event(self.hue_event, "hue_event")
 
-    def hue_event(
+    async def hue_event(
         self, event_name: str, data: dict[str, Any], kwargs: dict[str, Any]
     ) -> None:
         try:
             switch_event = HueDimmerSwitch.Event.from_hue_event(
                 HueEvent.parse_obj(data)
             )
+            switch = switch_event.switch
+            sensor = switch.sensor
+
+            old_state = await sensor.get_state(self)
 
             if (
-                switch_event.process(self)
-                == HueDimmerSwitch.Event.ProcessResult.IGNORED
+                await switch.process_event(self, switch_event)
+                == HueDimmerSwitch.ProcessResult.IGNORED
             ):
                 self.log(f"Ignored {switch_event}")
                 return
 
-            switch = switch_event.switch
-            old_state = switch.get_state(self)
-
+            new_state = await sensor.get_state(self)
             self.log(
-                f"Switch {switch} changed from state {old_state} to state {switch.get_state(self)}."
+                f"Switch sensor {sensor} changed from state {old_state} to state {new_state}."
             )
 
-            for room in all_rooms:
-                if switch == room.switch:
-                    room.refresh(self)
+            await home.refresh(self)
         except:
             self.notify_exception()
             raise

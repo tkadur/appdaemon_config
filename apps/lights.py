@@ -5,54 +5,71 @@ from enum import auto, unique
 import re
 from typing import ClassVar, Optional
 
-from appdaemon.plugins.hass.hassapi import Hass
-
+from base_app import BaseApp
 from curve import current_light_setting
 from light_setting import LightSetting
 from switch import (
     HueDimmerSwitch,
+    SwitchSensor,
     bathroom_dimmer_switch,
     bedroom_dimmer_switch,
     living_room_dimmer_switch,
 )
 from util import StrEnum, irange
 
+# Brightnesses below this value (inclusive) get special handling at the fixture level
+LOW_BRIGHTNESS_BOUNDARY = 6
+
+
+def is_low_brightness(brightness: int) -> bool:
+    return 0 < brightness and brightness <= LOW_BRIGHTNESS_BOUNDARY
+
+
+def rescale_normal_brightness(brightness: int) -> int:
+    """
+    Rescales brightnesses above the boundary to make transitions across
+    the boundary smoother
+    """
+    assert not is_low_brightness(
+        brightness
+    ), f"Brightness {brightness} is below the low brightness boundary {LOW_BRIGHTNESS_BOUNDARY} and therefore should not be rescaled."
+
+    if brightness == 0:
+        return 0
+
+    return int(
+        ((brightness - LOW_BRIGHTNESS_BOUNDARY) / (100 - LOW_BRIGHTNESS_BOUNDARY)) * 100
+    )
+
 
 @dataclass(frozen=True)
 class Light:
     entity_id: str
 
-    def set(self, hass: Hass, setting: LightSetting) -> None:
-        if setting.brightness == 0:
-            hass.turn_off(self.entity_id, transition=0)
-        else:
-            hass.turn_on(
-                self.entity_id,
-                brightness_pct=setting.brightness,
-                kelvin=setting.color_temperature,
-            )
+    async def set(self, app: BaseApp, setting: LightSetting) -> None:
+        app.set_light(self.entity_id, setting)
 
 
 @dataclass(frozen=True)
 class Fixture:
     lights: list[Light]
 
-    def set(self, hass: Hass, setting: LightSetting) -> None:
+    async def set(self, app: BaseApp, setting: LightSetting) -> None:
         # For very low settings, since lights can't go lower than 1% we can
         # try to emulate lower brightnesses by turning on a subset of the lights to 1%.
         # To make transitions across the boundary smoother we also re-scale
         # brightnesses above the boundary.
 
-        BOUNDARY = 6
-
         lights_to_set = self.lights
-        if setting.brightness > BOUNDARY:
-            setting = setting.with_brightness(
-                int(((setting.brightness - BOUNDARY) / (100 - BOUNDARY)) * 100)
-            )
-        elif setting.brightness > 0:
+        if is_low_brightness(setting.brightness):
             num_lights_to_set = max(
-                1, int(round((setting.brightness * len(self.lights)) / BOUNDARY))
+                1,
+                int(
+                    round(
+                        (setting.brightness * len(self.lights))
+                        / LOW_BRIGHTNESS_BOUNDARY
+                    )
+                ),
             )
             lights_to_set = self.lights[:num_lights_to_set]
 
@@ -60,41 +77,51 @@ class Fixture:
 
             # Turn off unneeded lights
             for light in self.lights[num_lights_to_set:]:
-                light.set(hass, LightSetting.OFF)
+                light.set(app, LightSetting.OFF)
 
         for light in lights_to_set:
-            light.set(hass, setting)
+            await light.set(app, setting)
 
 
 @dataclass(frozen=True)
 class Room:
-    switch: HueDimmerSwitch
+    entity_id: str
+    switch_sensor: SwitchSensor[HueDimmerSwitch.State]
     fixtures: list[Fixture]
 
-    def refresh(self, hass: Hass) -> None:
-        setting = current_light_setting(hass)
-
-        switch_state = self.switch.get_state(hass)
+    async def refresh(self, app: BaseApp) -> None:
+        switch_state = await self.switch_sensor.get_state(app)
+        setting = current_light_setting()
         if switch_state != HueDimmerSwitch.State.DEFAULT:
             setting = setting.with_brightness(switch_state.to_brightness())
 
-        for fixture in self.fixtures:
-            fixture.set(hass, setting)
+        # For low brightnesses, we need to manually iterate over every fixture
+        # to do the partial fixture illumination stuff
+        if is_low_brightness(setting.brightness):
+            for fixture in self.fixtures:
+                app.create_task(fixture.set(app, setting))
+        # For normal brightnesses, we can directly set every fixture at once
+        else:
+            setting = setting.with_brightness(
+                rescale_normal_brightness(setting.brightness)
+            )
+            app.create_task(app.set_light(self.entity_id, setting))
 
 
 @dataclass(frozen=True)
 class Home:
     rooms: list[Room]
 
-    def refresh(self, hass: Hass) -> None:
+    async def refresh(self, app: BaseApp) -> None:
         for room in self.rooms:
-            room.refresh(hass)
+            await room.refresh(app)
 
 
 # Light declarations
 
 bathroom = Room(
-    switch=bathroom_dimmer_switch,
+    entity_id="light.bathroom",
+    switch_sensor=bedroom_dimmer_switch.sensor,
     fixtures=[
         Fixture([Light("light.bathroom_hallway")]),
         Fixture([Light(f"light.bathroom_mirror_{bulb}") for bulb in irange(1, 4)]),
@@ -102,7 +129,8 @@ bathroom = Room(
 )
 
 bedroom = Room(
-    switch=bedroom_dimmer_switch,
+    entity_id="light.bedroom",
+    switch_sensor=bedroom_dimmer_switch.sensor,
     fixtures=[
         Fixture(
             [Light(f"light.bedroom_vidja_{fixture}_{bulb}") for bulb in irange(1, 6)]
@@ -112,21 +140,26 @@ bedroom = Room(
 )
 
 dining_room = Room(
-    switch=living_room_dimmer_switch,
+    entity_id="light.dining_room",
+    switch_sensor=living_room_dimmer_switch.sensor,
     fixtures=[Fixture([Light("light.dining_room_fan")])],
 )
 
 hallway = Room(
-    switch=living_room_dimmer_switch, fixtures=[Fixture([Light("light.hallway")])]
+    entity_id="light.hallway",
+    switch_sensor=living_room_dimmer_switch.sensor,
+    fixtures=[Fixture([Light("light.hallway")])],
 )
 
 kitchen = Room(
-    switch=living_room_dimmer_switch,
+    entity_id="light.kitchen",
+    switch_sensor=living_room_dimmer_switch.sensor,
     fixtures=[Fixture([Light(f"light.kitchen_{bulb}") for bulb in irange(1, 2)])],
 )
 
 living_room = Room(
-    switch=living_room_dimmer_switch,
+    entity_id="light.living_room",
+    switch_sensor=living_room_dimmer_switch.sensor,
     fixtures=[
         Fixture(
             [
@@ -139,7 +172,8 @@ living_room = Room(
 )
 
 toilet = Room(
-    switch=bedroom_dimmer_switch,
+    entity_id="light.toilet",
+    switch_sensor=bedroom_dimmer_switch.sensor,
     fixtures=[
         Fixture(
             [Light(f"light.toilet_{bulb}") for bulb in irange(1, 2)],
@@ -147,6 +181,6 @@ toilet = Room(
     ],
 )
 
-all_rooms = [bathroom, bedroom, dining_room, hallway, kitchen, living_room, toilet]
-
-home = Home(all_rooms)
+home = Home(
+    rooms=[bathroom, bedroom, dining_room, hallway, kitchen, living_room, toilet],
+)

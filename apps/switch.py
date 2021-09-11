@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum, auto, unique
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, ClassVar, Mapping, Optional, Type, TypeVar
+from typing import Any, ClassVar, Generic, Mapping, Optional, Protocol, Type, TypeVar
 
 from appdaemon.plugins.hass.hassapi import Hass
 
@@ -15,8 +15,15 @@ from util import StrEnum
 
 @dataclass(frozen=True)
 class HueDimmerSwitch:
+    """
+    Represents a physical Hue dimmer switch
+    """
+
     id: str
     unique_id: str
+    sensor: SwitchSensor[HueDimmerSwitch.State]
+
+    _EVENT_CODE_TO_BUTTON_ACTION: ClassVar[Mapping[int, tuple[Button, ButtonAction]]]
 
     @unique
     class Button(IntEnum):
@@ -35,111 +42,54 @@ class HueDimmerSwitch:
         PRESS_UP = 2
         HOLD_UP = 3
 
-    _EVENT_CODE_TO_BUTTON_ACTION: ClassVar[Mapping[int, tuple[Button, ButtonAction]]]
-
     @dataclass(frozen=True)
     class Event:
         switch: HueDimmerSwitch
         button: HueDimmerSwitch.Button
         action: HueDimmerSwitch.ButtonAction
 
-        _Self = TypeVar("_Self", bound="HueDimmerSwitch.Event")
-
-        @classmethod
-        def from_hue_event(cls: Type[_Self], hue_event: HueEvent) -> _Self:
+        @staticmethod
+        def from_hue_event(hue_event: HueEvent) -> HueDimmerSwitch.Event:
             button, action = HueDimmerSwitch._EVENT_CODE_TO_BUTTON_ACTION[
                 hue_event.event
             ]
-            return cls(
-                switch=HueDimmerSwitch(id=hue_event.id, unique_id=hue_event.unique_id),
+            return HueDimmerSwitch.Event(
+                switch=SWITCHES_BY_ID[(hue_event.id, hue_event.unique_id)],
                 button=button,
                 action=action,
             )
 
-        @unique
-        class ProcessResult(Enum):
-            PROCESSED = auto()
-            IGNORED = auto()
-            UNRECOGNIZED = auto()
+    @unique
+    class ProcessResult(Enum):
+        PROCESSED = auto()
+        IGNORED = auto()
 
-        def process(self, hass: Hass) -> ProcessResult:
-            if self.switch not in all_switches:
-                return self.ProcessResult.UNRECOGNIZED
+    async def process_event(
+        self, app: Hass, event: HueDimmerSwitch.Event
+    ) -> ProcessResult:
+        if event.switch != self:
+            raise ValueError(
+                f"Event was sent to the wrong switch. \n"
+                f"Switch: {self} \n"
+                f"Event: {event}"
+            )
 
-            # We ignore down actions because they're unreliable
-            if self.action in (
-                HueDimmerSwitch.ButtonAction.PRESS_DOWN,
-                HueDimmerSwitch.ButtonAction.HOLD_DOWN,
-            ):
-                return self.ProcessResult.IGNORED
+        # We ignore down actions because they're unreliable
+        if event.action in (
+            HueDimmerSwitch.ButtonAction.PRESS_DOWN,
+            HueDimmerSwitch.ButtonAction.HOLD_DOWN,
+        ):
+            return self.ProcessResult.IGNORED
 
-            half_brightness = HueDimmerSwitch.State.HALF_ON.to_brightness()
-            full_brightness = HueDimmerSwitch.State.ON.to_brightness()
+        new_state = {
+            HueDimmerSwitch.Button.POWER: HueDimmerSwitch.State.OFF,
+            HueDimmerSwitch.Button.BRIGHTNESS_UP: HueDimmerSwitch.State.ON,
+            HueDimmerSwitch.Button.BRIGHTNESS_DOWN: HueDimmerSwitch.State.HALF_ON,
+            HueDimmerSwitch.Button.HUE: HueDimmerSwitch.State.DEFAULT,
+        }[event.button]
 
-            current_state = self.switch.get_state(hass)
-            new_state = current_state
-            current_brightness = current_light_setting(hass).brightness
-
-            # Power switch
-            if self.button == HueDimmerSwitch.Button.POWER:
-                # off -> half on if default brightness is low
-                if (
-                    current_state == HueDimmerSwitch.State.OFF
-                    and current_brightness < half_brightness
-                ):
-                    new_state = HueDimmerSwitch.State.HALF_ON
-                # off -> default if not low brightness
-                elif (
-                    current_state == HueDimmerSwitch.State.OFF
-                    and current_brightness >= half_brightness
-                ):
-                    new_state = HueDimmerSwitch.State.DEFAULT
-                # default/half on/on -> off
-                else:
-                    new_state = HueDimmerSwitch.State.OFF
-            # Brightness up
-            elif self.button == HueDimmerSwitch.Button.BRIGHTNESS_UP:
-                hass.log(f"{current_state}, {current_brightness}")
-
-                # off/low brightness -> half on
-                if current_state == HueDimmerSwitch.State.OFF or (
-                    current_state == HueDimmerSwitch.State.DEFAULT
-                    and current_brightness < half_brightness
-                ):
-                    new_state = HueDimmerSwitch.State.HALF_ON
-                # half on/middling brightness -> on
-                elif current_state == HueDimmerSwitch.State.HALF_ON or (
-                    current_state == HueDimmerSwitch.State.DEFAULT
-                    and current_brightness < full_brightness
-                ):
-                    new_state = HueDimmerSwitch.State.ON
-            # Brightness down
-            elif self.button == HueDimmerSwitch.Button.BRIGHTNESS_DOWN:
-                # on/high brightness -> half on
-                if current_state == HueDimmerSwitch.State.ON or (
-                    current_state == HueDimmerSwitch.State.DEFAULT
-                    and current_brightness > half_brightness
-                ):
-                    new_state = HueDimmerSwitch.State.HALF_ON
-                # half on/ middling brightness -> off
-                elif current_state == HueDimmerSwitch.State.HALF_ON or (
-                    current_state == HueDimmerSwitch.State.DEFAULT
-                    and current_brightness <= half_brightness
-                ):
-                    new_state = HueDimmerSwitch.State.OFF
-            # Hue button
-            elif self.button == HueDimmerSwitch.Button.HUE:
-                new_state = HueDimmerSwitch.State.DEFAULT
-
-            # if current_state == new_state:
-            #    return self.ProcessResult.IGNORED
-
-            self.switch.set_state(hass, new_state)
-            return self.ProcessResult.PROCESSED
-
-    @cached_property
-    def _entity_name(self) -> str:
-        return f"switch.{self.id}"
+        await self.sensor.set_state(app, new_state)
+        return self.ProcessResult.PROCESSED
 
     @unique
     class State(StrEnum):
@@ -155,17 +105,6 @@ class HueDimmerSwitch:
                 HueDimmerSwitch.State.ON: 100,
             }[self]
 
-    def get_state(self, hass: Hass) -> State:
-        state = hass.get_state(self._entity_name)
-        if state is None:
-            self.set_state(hass, self.State.DEFAULT)
-            return self.get_state(hass)
-
-        return self.State(state)
-
-    def set_state(self, hass: Hass, state: State) -> None:
-        hass.set_state(self._entity_name, state=state)
-
 
 HueDimmerSwitch._EVENT_CODE_TO_BUTTON_ACTION = {
     (button * 1000) + action: (button, action)
@@ -174,18 +113,73 @@ HueDimmerSwitch._EVENT_CODE_TO_BUTTON_ACTION = {
 }
 
 
-bathroom_dimmer_switch = HueDimmerSwitch(id="bathroom_dimmer_switch", unique_id="")
+_State = TypeVar("_State", bound=StrEnum)
+
+
+@dataclass(frozen=True)
+class SwitchSensor(Generic[_State]):
+    """
+    Represents a phantom sensor entity controlled by one more more switches
+    """
+
+    entity_name: str
+    default_state: _State
+
+    @cached_property
+    def entity_id(self) -> str:
+        return f"switch.{self.entity_name}"
+
+    async def get_state(self, app: Hass, fall_back_to_default: bool = True) -> _State:
+        raw_state = await app.get_state(self.entity_id)
+
+        try:
+            return self.default_state.__class__(raw_state)
+        except:
+            if fall_back_to_default:
+                await self.set_state(app, self.default_state)
+                return await self.get_state(app, fall_back_to_default=False)
+            else:
+                raise
+
+    async def set_state(self, app: Hass, state: _State) -> None:
+        await app.set_state(self.entity_id, state=state)
+
+
+# Sensor and switch declarations
+
+bathroom_dimmer_switch = HueDimmerSwitch(
+    id="bathroom_dimmer_switch",
+    unique_id="",
+    sensor=SwitchSensor(
+        entity_name="bathroom",
+        default_state=HueDimmerSwitch.State.DEFAULT,
+    ),
+)
 
 bedroom_dimmer_switch = HueDimmerSwitch(
-    id="bedroom_dimmer_switch", unique_id="00:17:88:01:09:a7:1b:9e-01-fc00"
+    id="bedroom_dimmer_switch",
+    unique_id="00:17:88:01:09:a7:1b:9e-01-fc00",
+    sensor=SwitchSensor(
+        entity_name="bedroom",
+        default_state=HueDimmerSwitch.State.DEFAULT,
+    ),
 )
 
 living_room_dimmer_switch = HueDimmerSwitch(
-    id="living_room_dimmer_switch", unique_id="00:17:88:01:09:a7:44:61-01-fc00"
+    id="living_room_dimmer_switch",
+    unique_id="00:17:88:01:09:a7:44:61-01-fc00",
+    sensor=SwitchSensor(
+        entity_name="living_room",
+        default_state=HueDimmerSwitch.State.DEFAULT,
+    ),
 )
 
-all_switches = [
+ALL_SWITCHES = (
     bathroom_dimmer_switch,
     bedroom_dimmer_switch,
     living_room_dimmer_switch,
-]
+)
+
+SWITCHES_BY_ID = MappingProxyType(
+    {(switch.id, switch.unique_id): switch for switch in ALL_SWITCHES}
+)

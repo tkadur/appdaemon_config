@@ -10,8 +10,8 @@ from base_app import BaseApp
 
 class EmitMetrics(BaseApp):
     def initialize(self) -> None:
-        self.brightness_metric = brightness_metric(self)
+        self.brightness_metric = brightness_metric()
         self.run_minutely(self.brightness_metric.mk_update(self), time(second=0))
 
-        self.color_temperature_metric = color_temperature_metric(self)
+        self.color_temperature_metric = color_temperature_metric()
         self.run_minutely(self.color_temperature_metric.mk_update(self), time(second=0))

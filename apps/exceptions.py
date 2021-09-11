@@ -1,0 +1,2 @@
+class LightUnresponsiveException(Exception):
+    pass
