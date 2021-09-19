@@ -100,8 +100,8 @@ class HueDimmerSwitch:
         def to_brightness(self) -> int:
             return {
                 HueDimmerSwitch.State.OFF: 0,
-                HueDimmerSwitch.State.HALF_ON: 25,
-                HueDimmerSwitch.State.ON: 100,
+                HueDimmerSwitch.State.HALF_ON: int(round(255 / 4)),
+                HueDimmerSwitch.State.ON: 255,
             }[self]
 
 

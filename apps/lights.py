@@ -38,7 +38,7 @@ def rescale_normal_brightness(brightness: int) -> int:
         return 0
 
     return int(
-        ((brightness - LOW_BRIGHTNESS_BOUNDARY) / (100 - LOW_BRIGHTNESS_BOUNDARY)) * 100
+        ((brightness - LOW_BRIGHTNESS_BOUNDARY) / (255 - LOW_BRIGHTNESS_BOUNDARY)) * 255
     )
 
 
