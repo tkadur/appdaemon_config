@@ -85,8 +85,8 @@ brightness_curve = pchip(time_values, brightness_values)
 color_temperature_curve = pchip(time_values, color_temperature_values)
 
 
-def current_light_setting() -> LightSetting:
-    minutes_since_midnight = time_to_minutes_since_midnight(datetime.now().time())
+async def current_light_setting(app: Hass) -> LightSetting:
+    minutes_since_midnight = time_to_minutes_since_midnight(await app.time())
 
     return LightSetting(
         brightness=int(brightness_curve(minutes_since_midnight)),

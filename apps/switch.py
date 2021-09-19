@@ -8,7 +8,6 @@ from typing import Any, ClassVar, Generic, Mapping, Optional, Protocol, Type, Ty
 
 from appdaemon.plugins.hass.hassapi import Hass
 
-from curve import current_light_setting
 from hue_event import Event as HueEvent
 from util import StrEnum
 

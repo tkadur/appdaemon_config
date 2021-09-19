@@ -7,6 +7,7 @@ from hue_event import Event as HueEvent
 from lights import home
 from switch import HueDimmerSwitch
 
+
 class ProcessSwitchEvents(BaseApp):
     async def initialize(self) -> None:
         self.listen_event(self.hue_event, "hue_event")

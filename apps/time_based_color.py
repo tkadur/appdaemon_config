@@ -14,7 +14,7 @@ class TimeBasedColor(BaseApp):
         self.run_minutely(self.set_lights_timer, time(second=0))
         self.listen_state(self.set_lights_switch, "switch")
 
-        self.current_setting = current_light_setting()
+        self.current_setting = await current_light_setting(self)
 
     async def set_lights_timer(self, kwargs: dict[str, Any]) -> None:
         await self._set_lights()
@@ -26,7 +26,7 @@ class TimeBasedColor(BaseApp):
 
     async def _set_lights(self) -> None:
         try:
-            new_setting = current_light_setting()
+            new_setting = await current_light_setting(self)
             if self.current_setting == new_setting:
                 self.log("Skipping minutely update")
                 return

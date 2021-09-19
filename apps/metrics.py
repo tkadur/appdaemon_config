@@ -10,7 +10,7 @@ from curve import current_light_setting, mireds_to_kelvin
 # Workaround https://github.com/python/mypy/issues/5485 until the fix
 # gets info the next mypy release
 class CalculateFn(Protocol):
-    def __call__(self) -> Coroutine[None, None, int]:
+    def __call__(self, app: Hass) -> Coroutine[None, None, int]:
         ...
 
 
@@ -30,7 +30,7 @@ class Metric:
         async def update(kwargs: dict[str, Any]) -> None:
             await app.set_state(
                 self._entity_name,
-                state=await self.calculate(),
+                state=await self.calculate(app),
                 attributes={"unit_of_measurement": self.unit_of_measurement},
             )
 
@@ -39,8 +39,9 @@ class Metric:
 
 def brightness_metric() -> Metric:
     # Convert from a 0-255 scale to a 0-100 scale
-    async def calculate() -> int:
-        return int(round(current_light_setting().brightness / 255))
+    async def calculate(app: Hass) -> int:
+        current_brightness = (await current_light_setting(app)).brightness
+        return int(round(current_brightness / 255))
 
     return Metric(
         name="brightness",
@@ -50,8 +51,9 @@ def brightness_metric() -> Metric:
 
 
 def color_temperature_metric() -> Metric:
-    async def calculate() -> int:
-        return mireds_to_kelvin(current_light_setting().color_temperature)
+    async def calculate(app: Hass) -> int:
+        current_color_temperature = (await current_light_setting(app)).color_temperature
+        return mireds_to_kelvin(current_color_temperature)
 
     return Metric(
         name="color_temperature",

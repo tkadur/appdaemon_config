@@ -31,7 +31,7 @@ class BaseApp(Hass):
     async def set_light(self, entity_id: str, setting: LightSetting) -> bool:
         if setting == await self._get_light_setting(entity_id):
             return True
-        
+
         if setting.brightness == 0:
             await self.turn_off(entity_id=entity_id)
         else:
