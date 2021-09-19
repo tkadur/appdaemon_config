@@ -38,10 +38,10 @@ class Metric:
 
 
 def brightness_metric() -> Metric:
-    # Convert from a 0-255 scale to a 0-100 scale
     async def calculate(app: Hass) -> int:
-        current_brightness = (await current_light_setting(app)).brightness
-        return int(round(current_brightness / 255))
+        current_setting = await current_light_setting(app)
+        # Display the metric on a 0-100 scale instead of 0-255
+        return int(round(current_setting.brightness / 2.55))
 
     return Metric(
         name="brightness",
@@ -52,8 +52,8 @@ def brightness_metric() -> Metric:
 
 def color_temperature_metric() -> Metric:
     async def calculate(app: Hass) -> int:
-        current_color_temperature = (await current_light_setting(app)).color_temperature
-        return mireds_to_kelvin(current_color_temperature)
+        current_setting = await current_light_setting(app)
+        return mireds_to_kelvin(current_setting.color_temperature)
 
     return Metric(
         name="color_temperature",

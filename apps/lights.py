@@ -98,12 +98,10 @@ class Room:
         # For low brightnesses, we need to manually iterate over every fixture
         # to do the partial fixture illumination stuff
         if is_low_brightness(setting.brightness):
-            app.log(f"Brightness {setting.brightness} is low, using special fixture logic")
             for fixture in self.fixtures:
                 app.create_task(fixture.set(app, setting))
         # For normal brightnesses, we can directly set every fixture at once
         else:
-            app.log(f"Brightness {setting.brightness} is not low, using normal logic")
             setting = setting.with_brightness(
                 rescale_normal_brightness(setting.brightness)
             )

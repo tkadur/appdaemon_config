@@ -35,8 +35,6 @@ class ProcessSwitchEvents(BaseApp):
             self.log(
                 f"Switch sensor {sensor} changed from state {old_state} to state {new_state}."
             )
-
-            await home.refresh(self)
         except:
             self.notify_exception()
             raise
