@@ -9,6 +9,7 @@ from typing import Any, ClassVar, Generic, Mapping, Optional, Protocol, Type, Ty
 from appdaemon.plugins.hass.hassapi import Hass
 
 from hue_event import Event as HueEvent
+from light_setting import LightSetting
 from util import StrEnum
 
 
@@ -100,8 +101,8 @@ class HueDimmerSwitch:
         def to_brightness(self) -> int:
             return {
                 HueDimmerSwitch.State.OFF: 0,
-                HueDimmerSwitch.State.HALF_ON: int(round(255 / 4)),
-                HueDimmerSwitch.State.ON: 255,
+                HueDimmerSwitch.State.HALF_ON: 25,
+                HueDimmerSwitch.State.ON: 100,
             }[self]
 
 

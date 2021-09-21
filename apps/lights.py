@@ -6,7 +6,7 @@ import re
 from typing import ClassVar, Optional
 
 from base_app import BaseApp
-from curve import current_light_setting
+from curve import current_curve_setting
 from light_setting import LightSetting
 from switch import (
     HueDimmerSwitch,
@@ -38,7 +38,7 @@ def rescale_normal_brightness(brightness: int) -> int:
         return 0
 
     return int(
-        ((brightness - LOW_BRIGHTNESS_BOUNDARY) / (255 - LOW_BRIGHTNESS_BOUNDARY)) * 255
+        ((brightness - LOW_BRIGHTNESS_BOUNDARY) / (100 - LOW_BRIGHTNESS_BOUNDARY)) * 100
     )
 
 
@@ -89,11 +89,16 @@ class Room:
     switch_sensor: SwitchSensor[HueDimmerSwitch.State]
     fixtures: list[Fixture]
 
-    async def refresh(self, app: BaseApp) -> None:
+    async def current_setting(self, app: BaseApp) -> LightSetting:
         switch_state = await self.switch_sensor.get_state(app)
-        setting = await current_light_setting(app)
+        setting = await current_curve_setting(app)
         if switch_state != HueDimmerSwitch.State.DEFAULT:
             setting = setting.with_brightness(switch_state.to_brightness())
+
+        return setting
+
+    async def refresh(self, app: BaseApp) -> None:
+        setting = await self.current_setting(app)
 
         # For low brightnesses, we need to manually iterate over every fixture
         # to do the partial fixture illumination stuff

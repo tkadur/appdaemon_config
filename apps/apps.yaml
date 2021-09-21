@@ -1,6 +1,5 @@
 global_modules:
   - base_app
-  - exceptions
   - hue_event
   - lights
   - curve
@@ -14,7 +13,6 @@ emit_metrics:
   class: EmitMetrics
   global_dependencies:
     - base_app
-    - exceptions
     - curve
     - light_setting
     - metrics
@@ -24,7 +22,6 @@ process_switch_events:
   class: ProcessSwitchEvents
   global_dependencies:
     - base_app
-    - exceptions
     - hue_event
     - lights
     - metrics
@@ -36,7 +33,6 @@ time_based_color:
   class: TimeBasedColor
   global_dependencies:
     - base_app
-    - exceptions
     - hue_event
     - lights
     - curve
@@ -49,7 +45,6 @@ reset_switch_sensors:
   class: ResetSwitchSensors
   global_dependencies:
     - base_app
-    - exceptions
     - curve
     - lights
     - switch

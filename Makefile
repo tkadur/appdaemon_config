@@ -14,4 +14,4 @@ generate_stubs:
 .PHONY: setup
 setup:
 	apk add py3-scipy py3-numpy py3-cryptography
-	pip install mypy black pylint backoff pydantic
+	pip install mypy black pylint pydantic

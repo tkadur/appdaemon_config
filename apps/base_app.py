@@ -5,9 +5,7 @@ from typing import Any, Iterable
 from appdaemon.plugins.hass.hassapi import Hass, hass_check
 import appdaemon.utils
 
-from exceptions import LightUnresponsiveException
 from light_setting import LightSetting
-from util import PredicateBackoffDetails
 
 
 class BaseApp(Hass):
@@ -23,7 +21,6 @@ class BaseApp(Hass):
         else:
             await self.turn_on(
                 entity_id=entity_id,
-                brightness=setting.brightness,
-                color_temp=setting.color_temperature,
+                brightness_pct=setting.brightness,
+                kelvin=setting.color_temperature,
             )
-
