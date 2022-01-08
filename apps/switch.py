@@ -20,10 +20,7 @@ class HueDimmerSwitch:
     """
 
     id: str
-    unique_id: str
     sensor: SwitchSensor[HueDimmerSwitch.State]
-
-    _EVENT_CODE_TO_BUTTON_ACTION: ClassVar[Mapping[int, tuple[Button, ButtonAction]]]
 
     @unique
     class Button(IntEnum):
@@ -33,14 +30,14 @@ class HueDimmerSwitch:
         HUE = 4
 
     @unique
-    class ButtonAction(IntEnum):
+    class ButtonAction(StrEnum):
         # Down events are not guaranteed to be sent
-        PRESS_DOWN = 0
-        HOLD_DOWN = 1
+        INITIAL_PRESS = auto()
 
-        # Up events are guaranteed to be sent
-        PRESS_UP = 2
-        HOLD_UP = 3
+        # Up and hold events are guaranteed to be sent
+        SHORT_RELEASE = auto()
+        LONG_RELEASE = auto()
+        REPEAT = auto()
 
     @dataclass(frozen=True)
     class Event:
@@ -50,11 +47,11 @@ class HueDimmerSwitch:
 
         @staticmethod
         def from_hue_event(hue_event: HueEvent) -> HueDimmerSwitch.Event:
-            button, action = HueDimmerSwitch._EVENT_CODE_TO_BUTTON_ACTION[
-                hue_event.event
-            ]
+            button = HueDimmerSwitch.Button(hue_event.subtype)
+            action = HueDimmerSwitch.ButtonAction(hue_event.type.upper())
+
             return HueDimmerSwitch.Event(
-                switch=SWITCHES_BY_ID[(hue_event.id, hue_event.unique_id)],
+                switch=SWITCHES_BY_ID[hue_event.id.removesuffix("_button")],
                 button=button,
                 action=action,
             )
@@ -64,9 +61,7 @@ class HueDimmerSwitch:
         PROCESSED = auto()
         IGNORED = auto()
 
-    async def process_event(
-        self, app: Hass, event: HueDimmerSwitch.Event
-    ) -> ProcessResult:
+    def process_event(self, app: Hass, event: HueDimmerSwitch.Event) -> ProcessResult:
         if event.switch != self:
             raise ValueError(
                 f"Event was sent to the wrong switch. \n"
@@ -75,10 +70,7 @@ class HueDimmerSwitch:
             )
 
         # We ignore down actions because they're unreliable
-        if event.action in (
-            HueDimmerSwitch.ButtonAction.PRESS_DOWN,
-            HueDimmerSwitch.ButtonAction.HOLD_DOWN,
-        ):
+        if event.action == HueDimmerSwitch.ButtonAction.INITIAL_PRESS:
             return self.ProcessResult.IGNORED
 
         if event.button == HueDimmerSwitch.Button.POWER:
@@ -87,12 +79,12 @@ class HueDimmerSwitch:
             new_state = HueDimmerSwitch.State.ON
         elif (
             event.button == HueDimmerSwitch.Button.BRIGHTNESS_DOWN
-            and event.action == HueDimmerSwitch.ButtonAction.PRESS_UP
+            and event.action == HueDimmerSwitch.ButtonAction.SHORT_RELEASE
         ):
             new_state = HueDimmerSwitch.State.HALF_ON
         elif (
             event.button == HueDimmerSwitch.Button.BRIGHTNESS_DOWN
-            and event.action == HueDimmerSwitch.ButtonAction.HOLD_UP
+            and event.action == HueDimmerSwitch.ButtonAction.LONG_RELEASE
         ):
             new_state = HueDimmerSwitch.State.QUARTER_ON
         elif event.button == HueDimmerSwitch.Button.HUE:
@@ -100,7 +92,7 @@ class HueDimmerSwitch:
         else:
             return self.ProcessResult.IGNORED
 
-        await self.sensor.set_state(app, new_state)
+        self.sensor.set_state(app, new_state)
         return self.ProcessResult.PROCESSED
 
     @unique
@@ -120,13 +112,6 @@ class HueDimmerSwitch:
             }[self]
 
 
-HueDimmerSwitch._EVENT_CODE_TO_BUTTON_ACTION = {
-    (button * 1000) + action: (button, action)
-    for button in HueDimmerSwitch.Button
-    for action in HueDimmerSwitch.ButtonAction
-}
-
-
 _State = TypeVar("_State", bound=StrEnum)
 
 
@@ -143,27 +128,26 @@ class SwitchSensor(Generic[_State]):
     def entity_id(self) -> str:
         return f"switch.{self.entity_name}"
 
-    async def get_state(self, app: Hass, fall_back_to_default: bool = True) -> _State:
-        raw_state = await app.get_state(self.entity_id)
+    def get_state(self, app: Hass, fall_back_to_default: bool = True) -> _State:
+        raw_state = app.get_state(self.entity_id)
 
         try:
             return self.default_state.__class__(raw_state)
         except:
             if fall_back_to_default:
-                await self.set_state(app, self.default_state)
-                return await self.get_state(app, fall_back_to_default=False)
+                self.set_state(app, self.default_state)
+                return self.get_state(app, fall_back_to_default=False)
             else:
                 raise
 
-    async def set_state(self, app: Hass, state: _State) -> None:
-        await app.set_state(self.entity_id, state=state)
+    def set_state(self, app: Hass, state: _State) -> None:
+        app.set_state(self.entity_id, state=state)
 
 
 # Sensor and switch declarations
 
 toilet_dimmer_switch = HueDimmerSwitch(
     id="toilet_dimmer_switch",
-    unique_id="00:17:88:01:09:a7:0c:a3-01-fc00",
     sensor=SwitchSensor(
         entity_name="toilet",
         default_state=HueDimmerSwitch.State.DEFAULT,
@@ -172,7 +156,6 @@ toilet_dimmer_switch = HueDimmerSwitch(
 
 bedroom_dimmer_switch = HueDimmerSwitch(
     id="bedroom_dimmer_switch",
-    unique_id="00:17:88:01:09:a7:1b:9e-01-fc00",
     sensor=SwitchSensor(
         entity_name="bedroom",
         default_state=HueDimmerSwitch.State.DEFAULT,
@@ -181,7 +164,6 @@ bedroom_dimmer_switch = HueDimmerSwitch(
 
 living_room_dimmer_switch = HueDimmerSwitch(
     id="living_room_dimmer_switch",
-    unique_id="00:17:88:01:09:a7:44:61-01-fc00",
     sensor=SwitchSensor(
         entity_name="living_room",
         default_state=HueDimmerSwitch.State.DEFAULT,
@@ -194,6 +176,4 @@ ALL_SWITCHES = (
     living_room_dimmer_switch,
 )
 
-SWITCHES_BY_ID = MappingProxyType(
-    {(switch.id, switch.unique_id): switch for switch in ALL_SWITCHES}
-)
+SWITCHES_BY_ID = MappingProxyType({switch.id: switch for switch in ALL_SWITCHES})

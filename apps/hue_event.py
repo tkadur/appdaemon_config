@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import auto, unique
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -20,15 +21,14 @@ class Context(BaseModel):
     user_id: Optional[str]
 
 
-class Metadata(BaseModel):
-    origin: Origin
-    time_fired: datetime
-    context: Context
-
-
 class Event(BaseModel):
+    # Human readable switch name, suffixed with "_button"
     id: str
-    unique_id: str
-    event: int
-    last_updated: datetime
-    metadata: Metadata
+    # Switch's unique ID
+    device_id: str
+    # Button's unique ID
+    unique_id: UUID
+    # Event type
+    type: str
+    # Button number
+    subtype: int

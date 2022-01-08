@@ -16,7 +16,7 @@ from switch import (
     bedroom_dimmer_switch,
     living_room_dimmer_switch,
 )
-from util import StrEnum, irange
+from util import irange
 
 # Brightnesses below this value (inclusive) get special handling at the fixture level
 LOW_BRIGHTNESS_BOUNDARY = 6
@@ -47,15 +47,15 @@ def rescale_normal_brightness(brightness: int) -> int:
 class Light:
     entity_id: str
 
-    async def set(self, app: BaseApp, setting: LightSetting) -> None:
-        await app.set_light(self.entity_id, setting)
+    def set(self, app: BaseApp, setting: LightSetting) -> None:
+        app.set_light(self.entity_id, setting)
 
 
 @dataclass(frozen=True)
 class Fixture:
     lights: list[Light]
 
-    async def set(self, app: BaseApp, setting: LightSetting) -> None:
+    def set(self, app: BaseApp, setting: LightSetting) -> None:
         # For very low settings, since lights can't go lower than 1% we can
         # try to emulate lower brightnesses by turning on a subset of the lights to 1%.
         # To make transitions across the boundary smoother we also re-scale
@@ -77,12 +77,12 @@ class Fixture:
 
             # Turn off unneeded lights
             for light in self.lights[num_lights_to_set:]:
-                await light.set(app, LightSetting.OFF)
+                light.set(app, LightSetting.OFF)
         else:
             lights_to_set = self.lights
 
         for light in lights_to_set:
-            await light.set(app, setting)
+            light.set(app, setting)
 
 
 @dataclass(frozen=True)
@@ -97,9 +97,9 @@ class Room:
         _, name = self.entity_id.split(".")
         return name.replace("_", " ").title()
 
-    async def current_setting(self, app: BaseApp) -> LightSetting:
-        switch_state = await self.switch_sensor.get_state(app)
-        setting = await current_curve_setting(app)
+    def current_setting(self, app: BaseApp) -> LightSetting:
+        switch_state = self.switch_sensor.get_state(app)
+        setting = current_curve_setting(app)
         if switch_state != HueDimmerSwitch.State.DEFAULT:
             setting = setting.with_brightness(switch_state.to_brightness())
 
@@ -110,29 +110,29 @@ class Room:
 
         return setting
 
-    async def refresh(self, app: BaseApp) -> None:
-        setting = await self.current_setting(app)
+    def refresh(self, app: BaseApp) -> None:
+        setting = self.current_setting(app)
 
         # For low brightnesses, we need to manually iterate over every fixture
         # to do the partial fixture illumination stuff
         if is_low_brightness(setting.brightness):
             for fixture in self.fixtures:
-                app.create_task(fixture.set(app, setting))
+                fixture.set(app, setting)
         # For normal brightnesses, we can directly set every fixture at once
         else:
             setting = setting.with_brightness(
                 rescale_normal_brightness(setting.brightness)
             )
-            app.create_task(app.set_light(self.entity_id, setting))
+            app.set_light(self.entity_id, setting)
 
 
 @dataclass(frozen=True)
 class Home:
     rooms: list[Room]
 
-    async def refresh(self, app: BaseApp) -> None:
+    def refresh(self, app: BaseApp) -> None:
         for room in self.rooms:
-            await room.refresh(app)
+            room.refresh(app)
 
 
 # Light declarations

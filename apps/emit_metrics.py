@@ -23,9 +23,10 @@ class EmitMetrics(BaseApp):
         self.run_minutely(self._color_temperature().mk_update(self), time(second=30))
 
     def _default_brightness(self) -> Metric:
-        async def calculate() -> Metric.Value:
-            current_setting = await current_curve_setting(self)
-            return Metric.Value(current_setting.brightness, {"source": "Default"})
+        def calculate() -> Metric.Value:
+            return Metric.Value(
+                current_curve_setting(self).brightness, {"source": "Default"}
+            )
 
         return Metric(
             name="brightness",
@@ -34,10 +35,9 @@ class EmitMetrics(BaseApp):
         )
 
     def _room_brightness(self, room: Room) -> Metric:
-        async def calculate() -> Metric.Value:
-            current_setting = await room.current_setting(self)
+        def calculate() -> Metric.Value:
             return Metric.Value(
-                current_setting.brightness, {"source": room.readable_name}
+                room.current_setting(self).brightness, {"source": room.readable_name}
             )
 
         return Metric(
@@ -47,9 +47,8 @@ class EmitMetrics(BaseApp):
         )
 
     def _color_temperature(self) -> Metric:
-        async def calculate() -> Metric.Value:
-            current_setting = await current_curve_setting(self)
-            return Metric.Value(current_setting.color_temperature)
+        def calculate() -> Metric.Value:
+            return Metric.Value(current_curve_setting(self).color_temperature)
 
         return Metric(
             name="color_temperature",
