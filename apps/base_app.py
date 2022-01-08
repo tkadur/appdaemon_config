@@ -15,7 +15,6 @@ class BaseApp(Hass):
     @appdaemon.utils.sync_wrapper
     @hass_check
     async def set_light(self, entity_id: str, setting: LightSetting) -> None:
-
         if setting.brightness == 0:
             await self.turn_off(entity_id=entity_id)
         else:

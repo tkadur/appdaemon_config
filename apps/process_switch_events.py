@@ -28,12 +28,11 @@ class ProcessSwitchEvents(BaseApp):
                 await switch.process_event(self, switch_event)
                 == HueDimmerSwitch.ProcessResult.IGNORED
             ):
-                self.log(f"Ignored {switch_event}")
                 return
 
             new_state = await sensor.get_state(self)
             self.log(
-                f"Switch sensor {sensor} changed from state {old_state} to state {new_state}."
+                f"Switch sensor {sensor.entity_name} changed from state {old_state} to state {new_state}."
             )
         except:
             self.notify_exception()

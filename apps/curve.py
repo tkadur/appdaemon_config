@@ -22,15 +22,15 @@ points = [
         LightSetting(brightness=0, color_temperature=2000),
     ),
     (
-        time(6, 00),
+        time(7, 30),
         LightSetting(brightness=0, color_temperature=2000),
     ),
     (
-        time(6, 30),
+        time(8, 00),
         LightSetting(brightness=100, color_temperature=6500),
     ),
     (
-        time(8, 00),
+        time(8, 30),
         LightSetting(brightness=100, color_temperature=5500),
     ),
     (
@@ -47,10 +47,10 @@ points = [
     ),
     (
         time(23, 15),
-        LightSetting(brightness=5, color_temperature=2200),
+        LightSetting(brightness=6, color_temperature=2200),
     ),
     (
-        time(23, 45),
+        time(23, 58),
         LightSetting(brightness=1, color_temperature=2000),
     ),
     (

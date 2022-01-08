@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import time
 from typing import Any
 
-from lights import home
+from lights import home, bedroom
 
 from base_app import BaseApp
 from curve import current_curve_setting
 
 
-class TimeBasedColor(BaseApp):
+class RefreshLights(BaseApp):
     async def initialize(self) -> None:
         self.run_minutely(self.refresh_lights_timer, time(second=0))
         self.listen_state(self.refresh_lights_switch, "switch")

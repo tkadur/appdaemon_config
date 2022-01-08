@@ -29,7 +29,9 @@ class Metric:
         state: int
         extra_attributes: dict[str, int | str] = field(default_factory=dict)
 
-    def mk_update(self, app: Hass) -> Callable[[dict[str, Any]], Coroutine[None, None, None]]:
+    def mk_update(
+        self, app: Hass
+    ) -> Callable[[dict[str, Any]], Coroutine[None, None, None]]:
         async def update(kwargs: dict[str, Any]) -> None:
             value = await self.calculate()
             await app.set_state(

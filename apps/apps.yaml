@@ -28,9 +28,9 @@ process_switch_events:
     - switch
     - util
 
-time_based_color:
-  module: time_based_color
-  class: TimeBasedColor
+refresh_lights:
+  module: refresh_lights
+  class: RefreshLights
   global_dependencies:
     - base_app
     - hue_event

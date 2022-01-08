@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import auto, unique
+from functools import cached_property
 import re
 from typing import ClassVar, Optional
 
@@ -11,7 +12,7 @@ from light_setting import LightSetting
 from switch import (
     HueDimmerSwitch,
     SwitchSensor,
-    bathroom_dimmer_switch,
+    toilet_dimmer_switch,
     bedroom_dimmer_switch,
     living_room_dimmer_switch,
 )
@@ -47,7 +48,7 @@ class Light:
     entity_id: str
 
     async def set(self, app: BaseApp, setting: LightSetting) -> None:
-        app.set_light(self.entity_id, setting)
+        await app.set_light(self.entity_id, setting)
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,6 @@ class Fixture:
         # To make transitions across the boundary smoother we also re-scale
         # brightnesses above the boundary.
 
-        lights_to_set = self.lights
         if is_low_brightness(setting.brightness):
             num_lights_to_set = max(
                 1,
@@ -77,7 +77,9 @@ class Fixture:
 
             # Turn off unneeded lights
             for light in self.lights[num_lights_to_set:]:
-                light.set(app, LightSetting.OFF)
+                await light.set(app, LightSetting.OFF)
+        else:
+            lights_to_set = self.lights
 
         for light in lights_to_set:
             await light.set(app, setting)
@@ -88,12 +90,23 @@ class Room:
     entity_id: str
     switch_sensor: SwitchSensor[HueDimmerSwitch.State]
     fixtures: list[Fixture]
+    minimum_brightness: Optional[int] = None
+
+    @cached_property
+    def readable_name(self) -> str:
+        _, name = self.entity_id.split(".")
+        return name.replace("_", " ").title()
 
     async def current_setting(self, app: BaseApp) -> LightSetting:
         switch_state = await self.switch_sensor.get_state(app)
         setting = await current_curve_setting(app)
         if switch_state != HueDimmerSwitch.State.DEFAULT:
             setting = setting.with_brightness(switch_state.to_brightness())
+
+        if self.minimum_brightness is not None:
+            setting = setting.with_brightness(
+                max(setting.brightness, self.minimum_brightness)
+            )
 
         return setting
 
@@ -126,7 +139,7 @@ class Home:
 
 bathroom = Room(
     entity_id="light.bathroom",
-    switch_sensor=bedroom_dimmer_switch.sensor,
+    switch_sensor=toilet_dimmer_switch.sensor,
     fixtures=[
         Fixture([Light("light.bathroom_hallway")]),
         Fixture([Light(f"light.bathroom_mirror_{bulb}") for bulb in irange(1, 4)]),
@@ -178,7 +191,7 @@ living_room = Room(
 
 toilet = Room(
     entity_id="light.toilet",
-    switch_sensor=bedroom_dimmer_switch.sensor,
+    switch_sensor=toilet_dimmer_switch.sensor,
     fixtures=[
         Fixture(
             [Light(f"light.toilet_{bulb}") for bulb in irange(1, 2)],

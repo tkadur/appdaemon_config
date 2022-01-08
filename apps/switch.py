@@ -81,12 +81,24 @@ class HueDimmerSwitch:
         ):
             return self.ProcessResult.IGNORED
 
-        new_state = {
-            HueDimmerSwitch.Button.POWER: HueDimmerSwitch.State.OFF,
-            HueDimmerSwitch.Button.BRIGHTNESS_UP: HueDimmerSwitch.State.ON,
-            HueDimmerSwitch.Button.BRIGHTNESS_DOWN: HueDimmerSwitch.State.HALF_ON,
-            HueDimmerSwitch.Button.HUE: HueDimmerSwitch.State.DEFAULT,
-        }[event.button]
+        if event.button == HueDimmerSwitch.Button.POWER:
+            new_state = HueDimmerSwitch.State.OFF
+        elif event.button == HueDimmerSwitch.Button.BRIGHTNESS_UP:
+            new_state = HueDimmerSwitch.State.ON
+        elif (
+            event.button == HueDimmerSwitch.Button.BRIGHTNESS_DOWN
+            and event.action == HueDimmerSwitch.ButtonAction.PRESS_UP
+        ):
+            new_state = HueDimmerSwitch.State.HALF_ON
+        elif (
+            event.button == HueDimmerSwitch.Button.BRIGHTNESS_DOWN
+            and event.action == HueDimmerSwitch.ButtonAction.HOLD_UP
+        ):
+            new_state = HueDimmerSwitch.State.QUARTER_ON
+        elif event.button == HueDimmerSwitch.Button.HUE:
+            new_state = HueDimmerSwitch.State.DEFAULT
+        else:
+            return self.ProcessResult.IGNORED
 
         await self.sensor.set_state(app, new_state)
         return self.ProcessResult.PROCESSED
@@ -95,12 +107,14 @@ class HueDimmerSwitch:
     class State(StrEnum):
         DEFAULT = auto()
         OFF = auto()
+        QUARTER_ON = auto()
         HALF_ON = auto()
         ON = auto()
 
         def to_brightness(self) -> int:
             return {
                 HueDimmerSwitch.State.OFF: 0,
+                HueDimmerSwitch.State.QUARTER_ON: 10,
                 HueDimmerSwitch.State.HALF_ON: 25,
                 HueDimmerSwitch.State.ON: 100,
             }[self]
@@ -147,11 +161,11 @@ class SwitchSensor(Generic[_State]):
 
 # Sensor and switch declarations
 
-bathroom_dimmer_switch = HueDimmerSwitch(
-    id="bathroom_dimmer_switch",
-    unique_id="",
+toilet_dimmer_switch = HueDimmerSwitch(
+    id="toilet_dimmer_switch",
+    unique_id="00:17:88:01:09:a7:0c:a3-01-fc00",
     sensor=SwitchSensor(
-        entity_name="bathroom",
+        entity_name="toilet",
         default_state=HueDimmerSwitch.State.DEFAULT,
     ),
 )
@@ -175,7 +189,7 @@ living_room_dimmer_switch = HueDimmerSwitch(
 )
 
 ALL_SWITCHES = (
-    bathroom_dimmer_switch,
+    toilet_dimmer_switch,
     bedroom_dimmer_switch,
     living_room_dimmer_switch,
 )
